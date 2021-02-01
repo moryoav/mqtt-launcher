@@ -38,6 +38,7 @@ import paho.mqtt.client as paho   # pip install paho-mqtt
 import time
 import socket
 import string
+from hashlib import sha1
 
 qos=2
 CONFIG=os.getenv('MQTTLAUNCHERCONFIG', 'launcher.conf')
@@ -68,16 +69,20 @@ else:
 logging.info("Starting")
 logging.debug("DEBUG MODE")
 
-def runprog(topic, param=None):
+def runprog(msg_topic, param=None):
 
-    publish = "%s/report" % topic
+    strip_pref = "%s/" % topic_prefix
+    topic = msg_topic[msg_topic[:len(strip_pref)].index(strip_pref) + len(strip_pref):]
+    print (topic)
+
+    topic_report = "%s/report" % msg_topic
 
     if param is not None and all(c in string.printable for c in param) == False:
         logging.debug("Param for topic %s is not printable; skipping" % (topic))
         return
 
     if not topic in topiclist:
-        logging.info("Topic %s isn't configured" % topic)
+        logging.info("Topic %s isn't configured" % msg_topic)
         return
 
     if param is not None and param in topiclist[topic]:
@@ -86,10 +91,10 @@ def runprog(topic, param=None):
         if None in topiclist[topic]: ### and topiclist[topic][None] is not None:
             cmd = [p.replace('@!@', param) for p in topiclist[topic][None]]
         else:
-            logging.info("No matching param (%s) for %s" % (param, topic))
+            logging.info("No matching param (%s) for %s" % (param, msg_topic))
             return
 
-    logging.debug("Running t=%s: %s" % (topic, cmd))
+    logging.debug("Running t=%s: %s" % (msg_topic, cmd))
 
     try:
         res = subprocess.check_output(cmd, stdin=None, stderr=subprocess.STDOUT, shell=False, universal_newlines=True, cwd='/tmp')
@@ -97,23 +102,30 @@ def runprog(topic, param=None):
         res = "*****> %s" % str(e)
 
     payload = res.rstrip('\n')
-    (res, mid) =  mqttc.publish(publish, payload, qos=qos, retain=False)
+    (res, mid) =  mqttc.publish(topic_report, payload, qos=qos, retain=False)
 
 
 def on_message(mosq, userdata, msg):
     logging.debug(msg.topic+" "+str(msg.qos)+" "+msg.payload.decode('utf-8'))
-
     runprog(msg.topic, msg.payload.decode('utf-8'))
 
 def on_connect(mosq, userdata, flags, result_code):
-    logging.debug("Connected to MQTT broker, subscribing to topics...")
-    for topic in topiclist:
-        mqttc.subscribe(topic, qos)
+    status_payload_running = cf.get('status_payload_running', 'running')
+    mqttc.publish(
+        status_topic, status_payload_running, qos=1, retain=True
+    )
+    logging.info("Current status set on %r as %r.", status_topic, status_payload_running)
 
+    logging.debug("Connected to MQTT broker (client id: %s), subscribing to topics...", client_id)
+    for topic in topiclist:
+        msg_topic = "%s/%s" % (topic_prefix, topic)
+        mqttc.subscribe(msg_topic, qos)
+        logging.info("Subscribed to topic: %r", msg_topic)
+
+    logging.info("Waiting for subscribed topic messages.")
 
 def on_disconnect(mosq, userdata, rc):
-    logging.debug("OOOOPS! launcher disconnects")
-    time.sleep(10)
+    logging.info("Disconnected from MQTT broker.")
 
 if __name__ == '__main__':
 
@@ -125,16 +137,22 @@ if __name__ == '__main__':
         logging.info("No topic list. Aborting")
         sys.exit(2)
 
-    clientid = cf.get('mqtt_clientid', 'mqtt-launcher-%s' % os.getpid())
+    topic_prefix = cf.get('topic_prefix', 'mqtt-launcher')
+    client_id = cf.get('mqtt_clientid', 'mqtt-launcher-%s' % sha1(topic_prefix.encode("utf8")).hexdigest())
+    
     # initialise MQTT broker connection
-    mqttc = paho.Client(clientid, clean_session=False)
-
-
+    mqttc = paho.Client(client_id, clean_session=False)
     mqttc.on_message = on_message
     mqttc.on_connect = on_connect
     mqttc.on_disconnect = on_disconnect
-
-    mqttc.will_set('clients/mqtt-launcher', payload="Adios!", qos=0, retain=False)
+    
+    # Set last will and testament (LWT)
+    status_topic = "%s/%s" % (topic_prefix, cf.get('status_topic', 'status'))
+    status_payload_dead = cf.get('status_payload_dead', 'dead')
+    mqttc.will_set(
+        status_topic, payload=status_payload_dead, qos=1, retain=True
+    )
+    logging.info("Last will set on %r as %r.", status_topic, status_payload_dead)
 
     # Delays will be: 3, 6, 12, 24, 30, 30, ...
     #mqttc.reconnect_delay_set(delay=3, delay_max=30, exponential_backoff=True)
@@ -147,10 +165,18 @@ if __name__ == '__main__':
 
     mqttc.connect(cf.get('mqtt_broker', 'localhost'), int(cf.get('mqtt_port', '1883')), 60)
 
-    while True:
-        try:
+    try:
+        while True:
             mqttc.loop_forever()
-        except socket.error:
-            time.sleep(5)
-        except KeyboardInterrupt:
-            sys.exit(0)
+    except socket.error:
+        time.sleep(5)
+    except KeyboardInterrupt:
+        mqttc.publish(
+            status_topic, cf.get('status_payload_stopped', 'stopped'), qos=1, retain=True
+        )
+
+        mqttc.loop_stop()
+        mqttc.disconnect()
+        mqttc.loop_forever()
+        
+        logging.debug("Exiting")
