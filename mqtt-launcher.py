@@ -40,7 +40,6 @@ import socket
 import string
 from hashlib import sha1
 
-qos=2
 CONFIG=os.getenv('MQTTLAUNCHERCONFIG', 'launcher.conf')
 
 class Config(object):
@@ -57,6 +56,7 @@ except Exception as e:
     print("Cannot load configuration from file %s: %s" % (CONFIG, str(e)))
     sys.exit(2)
 
+qos=cf.get('mqtt_qos', 2)
 LOGFILE = cf.get('logfile', 'logfile')
 LOGFORMAT = '%(asctime)-15s %(message)s'
 DEBUG=True
