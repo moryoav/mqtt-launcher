@@ -9,11 +9,11 @@ For example, I can publish a message to my MQTT broker requesting _mqtt-launcher
 create a particular semaphore file for me:
 
 ```
-mosquitto_pub -t sys/file -m create
+mosquitto_pub -t prefix/sys/file -m create
 ```
 
 The configuration file must be valid Python and it is loaded once. It contains
-the topic / process associations.
+the topic / process associations. MQTT topic prefix will be automatically added.
 
 ```python
 # topic         payload value           program & arguments
@@ -26,7 +26,7 @@ the topic / process associations.
 
 Above snippet instructs _mqtt-launcher_ to:
 
-* subscribe to the [MQTT] topic `sys/file`
+* subscribe to the [MQTT] topic `prefix/sys/file`
 * look up the payload string and launch the associated programs:
   * if the payload is `create`, then _touch_ a file
   * if the payload is the string `false`, remove a file
@@ -34,11 +34,11 @@ Above snippet instructs _mqtt-launcher_ to:
 
 The payload value may be `None` in which case the eacho of the list elements
 defining the program and arguments are checked for the magic string `@!@` which
-is replaced by the payload contents. (See example published at `dev/2`, `dev/3` and `dev/4` below.)
+is replaced by the payload contents. (See example published at `prefix/dev/2`, `prefix/dev/3` and `prefix/dev/4` below.)
 
 _mqtt-launcher_ publishes _stdout_ and _stderr_ of the launched program
 to the configured topic with `/report` added to it. So, in the example
-above, a non-retained message will be published to `sys/file/report`.
+above, a non-retained message will be published to `prefix/sys/file/report`.
 (Note that this message contains whatever the command outputs; trailing
 white space is truncated.)
 
@@ -49,45 +49,45 @@ Here's the obligatory "screenshot".
 ```
 Publishes					Subscribes
 -----------------------		------------------------------------------------------------------
-						$ mosquitto_sub -v -t 'dev/#' -t 'sys/file/#' -t 'prog/#' 
+						$ mosquitto_sub -v -t 'prefix/dev/#' -t 'prefix/sys/file/#' -t 'prefix/prog/#' 
 
 
-mosquitto_pub -t prog/pwd -n
-						prog/pwd (null)
-						prog/pwd/report /private/tmp
+mosquitto_pub -t prefix/prog/pwd -n
+						prefix/prog/pwd (null)
+						prefix/prog/pwd/report /private/tmp
 
-mosquitto_pub -t sys/file -m create
-						sys/file create
-						sys/file/report (null)	# command has no output
+mosquitto_pub -t prefix/sys/file -m create
+						prefix/sys/file create
+						prefix/sys/file/report (null)	# command has no output
 
-mosquitto_pub -t sys/file -m info
-						sys/file info
-						sys/file/report -rw-r--r--  1 jpm  wheel  0 Jan 22 16:10 /tmp/file.one
+mosquitto_pub -t prefix/sys/file -m info
+						prefix/sys/file info
+						prefix/sys/file/report -rw-r--r--  1 jpm  wheel  0 Jan 22 16:10 /tmp/file.one
 
-mosquitto_pub -t sys/file -m remove
-						sys/file remove
+mosquitto_pub -t prefix/sys/file -m remove
+						prefix/sys/file remove
 						# report not published: subcommand ('remove') doesn't exist
 						# log file says:
 						2014-01-22 16:11:30,393 No matching param (remove) for sys/file
 
-mosquitto_pub -t dev/1 -m hi
-						dev/1 hi
-						dev/1/report total 16231
+mosquitto_pub -t prefix/dev/1 -m hi
+						prefix/dev/1 hi
+						prefix/dev/1/report total 16231
 						drwxrwxr-x+ 157 root  admin     5338 Jan 20 10:48 Applications
 						drwxrwxr-x@   8 root  admin      272 Jan 25  2013 Developer
 						drwxr-xr-x+  72 root  wheel     2448 Oct 14 10:54 Library
 						...
-mosquitto_pub -t dev/2 -m 'Hi Jane!'
-						dev/2 Hi Jane!
-						dev/2/report 111 * Hi Jane! 222 Hi Jane! 333
+mosquitto_pub -t prefix/dev/2 -m 'Hi Jane!'
+						prefix/dev/2 Hi Jane!
+						prefix/dev/2/report 111 * Hi Jane! 222 Hi Jane! 333
 
-mosquitto_pub -t dev/3 -m 'foo-bar'
-						dev/3 foo-bar
-						dev/3/report foo-bar
+mosquitto_pub -t prefix/dev/3 -m 'foo-bar'
+						prefix/dev/3 foo-bar
+						prefix/dev/3/report foo-bar
 
-mosquitto_pub -t dev/4 -m 'foo/bar'
-						dev/4 foo/bar
-						dev/4/report var1=foo var2=bar
+mosquitto_pub -t prefix/dev/4 -m 'foo/bar'
+						prefix/dev/4 foo/bar
+						prefix/dev/4/report var1=foo var2=bar
 ```
 
 ## Configuration
