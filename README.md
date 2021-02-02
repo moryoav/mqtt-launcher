@@ -21,8 +21,8 @@ services:
     #  PIP_INSTALL: <all necessary python packages> # default: none
     #  APT_UPDATE: true # default: false
     #  PIP_UPDATE: true # default: false
-    devices:
-      - /dev/snd:/dev/snd
+    #devices:
+    #  - /dev/snd:/dev/snd # enable if sound output is necessary
     restart: unless-stopped
 ```
 
@@ -56,6 +56,9 @@ the topic / process associations. MQTT topic prefix will be automatically added.
                     'false'         :   [ '/bin/rm', '-f', '/tmp/file.one'    ],
                     'info'          :   [ '/bin/ls', '-l', '/tmp/file.one' ],
                 },
+'play-sound/doorbell' : {
+                    None            :   [ '/bin/bash', '-c', 'nohup mpg123 -q -f -2000 /mqtt-launcher/files/doorbell.mp3 &>/dev/null &' ],
+                        },
 ```
 
 Above snippet instructs _mqtt-launcher_ to:
