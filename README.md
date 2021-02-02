@@ -105,6 +105,36 @@ _mqtt-launcher_ logs its operation in the file configured as `logfile`.
 * Python
 * [paho-mqtt](https://pypi.python.org/pypi/paho-mqtt/1.3.1)
 
+## Docker
+
+### docker-compose
+```
+version: '3'
+services:
+
+  mqtt-launcher:
+    container_name: mqtt-launcher
+    image: ilmlv/mqtt-launcher:latest
+    volumes:
+      - ./mqtt-launcher/launcher.conf:/mqtt-launcher/launcher.conf
+      #- /var/log/mqtt-launcher.log:/mqtt-launcher/logfile # create local file before enabling it
+    #environment:
+    #  APT_INSTALL: <all linux packages> # default: none
+    #  PIP_INSTALL: <all necessary python packages> # default: none
+    #  APT_UPDATE: true # default: false
+    #  PIP_UPDATE: true # default: false
+    devices:
+      - /dev/snd:/dev/snd
+    restart: unless-stopped
+```
+
+### standalone docker container
+
+```
+docker run -ti --rm -v ./launcher.conf:/mqtt-launcher/launcher.conf ilmlv/mqtt-launcher:latest
+```
+
+
 ## Credits
 
 This program was inspired by two related tools:
