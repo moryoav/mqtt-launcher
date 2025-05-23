@@ -39,6 +39,7 @@ import time
 import socket
 import string
 from hashlib import sha1
+import json
 
 CONFIG=os.getenv('MQTTLAUNCHERCONFIG', 'launcher.conf')
 
@@ -122,6 +123,20 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
         mqttc.subscribe(msg_topic, qos)
         logging.info("Subscribed to topic: %r", msg_topic)
 
+    # ——— Home Assistant MQTT Discovery ———
+    for disc in cf.get('ha_discovery', []):
+        comp      = disc['component']
+        node_id   = disc['node_id']
+        object_id = disc['object_id']
+        cfg       = disc['config']
+
+        disc_topic = f"homeassistant/{comp}/{node_id}/{object_id}/config"
+        payload    = json.dumps(cfg)
+        mqttc.publish(disc_topic, payload, qos=1, retain=True)
+        logging.info("HA discovery published on %s", disc_topic)
+    # ————————————————————————————————
+
+
     logging.info("Waiting for subscribed topic messages.")
 
 def on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
@@ -141,7 +156,13 @@ if __name__ == '__main__':
     client_id = cf.get('mqtt_clientid', 'mqtt-launcher-%s' % sha1(topic_prefix.encode("utf8")).hexdigest())
     
     # initialise MQTT broker connection with VERSION1 callback API
-    mqttc = paho.Client(client_id, clean_session=False, protocol=paho.MQTTv5, callback_api_version=paho.CallbackAPIVersion.VERSION1)
+    # For paho-mqtt ≥2.0, callback_api_version must be the first positional argument
+    mqttc = paho.Client(
+        paho.CallbackAPIVersion.VERSION2,
+        client_id=client_id,
+        protocol=paho.MQTTv5
+    )
+    
     mqttc.on_message = on_message
     mqttc.on_connect = on_connect
     mqttc.on_disconnect = on_disconnect
