@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2014 Jan-Piet Mens <jpmens()gmail.com>
 # All rights reserved.
@@ -105,11 +105,11 @@ def runprog(msg_topic, param=None):
     (res, mid) =  mqttc.publish(topic_report, payload, qos=qos, retain=False)
 
 
-def on_message(mosq, userdata, msg):
-    logging.debug(msg.topic+" "+str(msg.qos)+" "+msg.payload.decode('utf-8'))
-    runprog(msg.topic, msg.payload.decode('utf-8'))
+def on_message(client, userdata, message, properties=None):
+    logging.debug(message.topic+" "+str(message.qos)+" "+message.payload.decode('utf-8'))
+    runprog(message.topic, message.payload.decode('utf-8'))
 
-def on_connect(mosq, userdata, flags, result_code):
+def on_connect(client, userdata, flags, reason_code, properties=None):
     status_payload_running = cf.get('status_payload_running', 'running')
     mqttc.publish(
         status_topic, status_payload_running, qos=1, retain=True
@@ -124,7 +124,7 @@ def on_connect(mosq, userdata, flags, result_code):
 
     logging.info("Waiting for subscribed topic messages.")
 
-def on_disconnect(mosq, userdata, rc):
+def on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
     logging.info("Disconnected from MQTT broker.")
 
 if __name__ == '__main__':
@@ -140,8 +140,8 @@ if __name__ == '__main__':
     topic_prefix = cf.get('topic_prefix', 'mqtt-launcher')
     client_id = cf.get('mqtt_clientid', 'mqtt-launcher-%s' % sha1(topic_prefix.encode("utf8")).hexdigest())
     
-    # initialise MQTT broker connection
-    mqttc = paho.Client(client_id, clean_session=False)
+    # initialise MQTT broker connection with VERSION1 callback API
+    mqttc = paho.Client(client_id, clean_session=False, protocol=paho.MQTTv5, callback_api_version=paho.CallbackAPIVersion.VERSION1)
     mqttc.on_message = on_message
     mqttc.on_connect = on_connect
     mqttc.on_disconnect = on_disconnect
