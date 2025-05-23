@@ -2,3 +2,4 @@
 launcher.conf
 logfile
 env.v3
+update_git.bat

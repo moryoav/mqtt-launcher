@@ -1,48 +1,92 @@
+# launcher.conf.example
 
+# Logfile path
 logfile         = 'logfile'
-topic_prefix    = 'mqtt-launcher-1' # Required
+topic_prefix    = 'mqtt-launcher-1'  # Required prefix for all topics
 
-mqtt_broker     = 'localhost'       # default: 'localhost'. If using TLS, this must be set to the domain name signed by your TLS certificate.
-mqtt_port       = 1883              # default: 1883
-mqtt_username   = None
-mqtt_password   = None
-#mqtt_username = 'jane'
-#mqtt_password = 'secret'
-mqtt_tls        = None              # default: No TLS
-#mqtt_qos       = 1                 # default: 2
-#mqtt_keepalive  = 60               # default: 60
-#mqtt_clientid   = 'mqtt-launcher-1' # optional, default: mqtt-launcher-<hash-from-topic_prefix>
+# MQTT broker connection
+mqtt_broker     = 'mqtt.example.local'   # e.g. 'localhost' or your broker host
+mqtt_port       = 1883                   # default: 1883
+mqtt_username   = 'your_username'        # set to None if not used
+mqtt_password   = 'your_password'        # set to None if not used
+#mqtt_tls      = None                   # set to your TLS config if needed
 
-# Status topic payloads
-#status_topic    = 'status'         # optional, default: status
-#status_payload_running = 'running' # optional, default: running
-#status_payload_stopped = 'stopped' # optional, default: stopped
-#status_payload_dead = 'dead'       # optional, default: dead
+# Optional MQTT settings
+#mqtt_qos       = 1                      # default: 2
+#mqtt_keepalive = 60                     # default: 60
+#mqtt_clientid  = 'mqtt-launcher-1'      # optional, default: mqtt-launcher-<hash-from-topic_prefix>
 
-# topic prefix will be added automatically
+# Status topic payloads (Home Assistant or other monitors can subscribe)
+#status_topic            = 'status'         # optional, default: 'status'
+#status_payload_running  = 'running'        # optional, default: 'running'
+#status_payload_stopped  = 'stopped'        # optional, default: 'stopped'
+#status_payload_dead     = 'dead'           # optional, default: 'dead'
+
+# ——— Home Assistant MQTT Discovery ———
+# Use this section to auto-publish HA discovery config on connect.
+# Replace placeholder values as needed.
+ha_discovery = [
+    {
+        "component":   "button",                # 'switch', 'sensor', 'light', etc.
+        "node_id":     "example_device",        # unique per physical device
+        "object_id":   "restart_action",        # unique per entity on this device
+        "config": {
+            "name":          "Example Restart",
+            "unique_id":     "example_device_restart_button",
+            "command_topic": "restart/device",   # topic launches the action
+            "payload_press": "reboot",           # message payload to trigger
+            "device": {
+                "identifiers":   ["DEVICE12345"],
+                "manufacturer":  "YourCompany",
+                "model":         "ModelX",
+                "name":          "Example Device"
+            }
+        }
+    }
+]
+# ————————————————————————————————
+
+# Topic → payload → [program & arguments]
 topiclist = {
+    # Example: create or remove a temporary file
+    "sys/file": {
+        'create': [ '/usr/bin/touch', '/tmp/file.one' ],
+        'false':  [ '/bin/rm', '-f', '/tmp/file.one' ],
+        'info':   [ '/bin/ls', '-l', '/tmp/file.one' ],
+    },
 
-    # topic                     payload value       program & arguments
-    "sys/file"          :   {
-                                'create'        :   [ '/usr/bin/touch', '/tmp/file.one' ],
-                                'false'         :   [ '/bin/rm', '-f', '/tmp/file.one'    ],
-                                'info'          :   [ '/bin/ls', '-l', '/tmp/file.one' ],
-                            },
-    "prog/pwd"          :   {
-                                None            :   [ 'pwd' ],
-                            },
-    "dev/1"             :   {
-                                None            :   [ 'ls', '-l', '/' ],
-                            },
-    "dev/2"             :   {
-                                None            :   [ "/bin/echo", "111", "*", "@!@", "222", "@!@", "333" ],
-                            },
-    "dev/3"             :   {
-                                None            :   [ "/bin/sh", '-c', 'var=@!@; echo $var'],
-                            },
-    "dev/4"             :   {
-                                None            :   [ "/bin/bash", 
-                                                      '-c',
-                                                      'IFS="/" read -r var1 var2 <<< "@!@"; echo "var1=$var1 var2=$var2"'],
-                            },
+    # Print working directory
+    "prog/pwd": {
+        None: [ 'pwd' ],
+    },
+
+    # List root directory
+    "dev/1": {
+        None: [ 'ls', '-l', '/' ],
+    },
+
+    # Echo with inserted parameter
+    "dev/2": {
+        None: [ "/bin/echo", "111", "*", "@!@", "222", "@!@", "333" ],
+    },
+
+    # Show parameter via shell
+    "dev/3": {
+        None: [ "/bin/sh", '-c', 'var=@!@; echo $var' ],
+    },
+
+    # Split on slash and echo
+    "dev/4": {
+        None: [ "/bin/bash", '-c', 'IFS="/" read -r var1 var2 <<< "@!@"; echo "var1=$var1 var2=$var2"' ],
+    },
+
+    # Reboot Raspberry Pi via chrooted systemctl
+    "reboot/pi": {
+        'reboot': [
+            'chroot',
+            '/host',
+            '/usr/bin/systemctl',
+            'reboot'
+        ]
+    },
 }
